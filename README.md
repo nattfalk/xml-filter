@@ -2,7 +2,7 @@
 
 Extremly simple .NET Core command-line tool for filtering XML files using XPath
 
-![](https://github.com/nattfalk/xml-filter/.github/workflows/dotnetcore.yml/badge.svg)
+![](https://github.com/nattfalk/xml-filter/workflows/.NET%20Core/badge.svg)
 
 ## Prerequisites
 

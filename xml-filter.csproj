@@ -1,10 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
     <RootNamespace>xml_filter</RootNamespace>
-    <VersionPrefix>0.1.0</VersionPrefix>
+    <VersionPrefix>0.2.0</VersionPrefix>
+    <Authors>Michael Nattfalk</Authors>
+    <Company>Michael Nattfalk</Company>
+    <RepositoryUrl>https://github.com/nattfalk/xml-filter</RepositoryUrl>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommandLineParser" Version="2.7.82" />
+  </ItemGroup>
+
+
 
 </Project>

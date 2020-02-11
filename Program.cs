@@ -4,113 +4,131 @@ using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using System.Xml.XPath;
+using CommandLine;
 
 namespace xml_filter
 {
+    class Options
+    {
+        [Option('i', "input", Required = true, HelpText = "Input XML file")]
+        public string InputFile { get; set; }
+
+        [Option('o', "output", HelpText = "Output XML file")]
+        public string OutputFile { get; set; }
+
+        [Option('x', "xpath", Required = true, HelpText = "XPath filter (added to base-node) used to filter the nodes")]
+        public string XPathFilter { get; set; }
+
+        [Option('c', "contents", HelpText = "Displays contents from given number of elements after applied filter")]
+        public int? Contents { get; set; }
+    }
+
     class Program
     {
-        static void PrintUsage()
+        static string GetNodePath(XElement element)
         {
-            Console.WriteLine(
-                "Command-line tool for filtering XML files using XPath.\n"
-                + "Copyright (C)) 2019 Michael Nattfalk"
-                + "\n"
-                + "Usage: xml-filter [in-file] [out-file] [base-node] [xpath-filter]\n"
-                + "\n"
-                + "in-file:\n"
-                + "  The path to the XML file to filter.\n"
-                + "out-file:\n"
-                + "  The path for saving the filtered XML file.\n"
-                + "base-node:\n"
-                + "  The base node to apply the filtering on.\n"
-                + "xpath-filter:\n"
-                + "  XPath filter (added to base-node) used to filter the nodes.\n");
+            string path = string.Empty;
+
+            path = $"/{element.Name}";
+            var parent = element.Parent;
+            while (parent != null)
+            {
+                path = $"/{parent.Name}{path}";
+                parent = parent.Parent;
+            }
+
+            return path;
+        }
+
+        static void DoFilter(Options options)
+        {
+            XDocument doc = null;
+            try
+            {
+                doc = XDocument.Load(options.InputFile);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return;
+            }
+
+            XElement[] filteredElements = null;
+            try
+            {
+                filteredElements = doc.XPathSelectElements(options.XPathFilter).ToArray();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return;
+            }
+
+            if (filteredElements.Count() == 0)
+            {
+                Console.WriteLine("No elements matched the filter!");
+                return;
+            }
+
+            string nodePath = GetNodePath(filteredElements.First());
+#if DEBUG
+            // Console.WriteLine($"xpath: {options.XPathFilter}");
+            // Console.WriteLine($"node path: {nodePath}");
+#endif
+            int totalElementCount = doc.XPathSelectElements(nodePath).Count();
+            Console.WriteLine($"Filter resulted in {filteredElements.Length} of totally {totalElementCount} elements.");
+
+            if (!string.IsNullOrWhiteSpace(options.OutputFile))
+            {
+                doc.XPathSelectElements(nodePath).Except(filteredElements).Remove();
+
+                if (!string.IsNullOrEmpty(options.OutputFile))
+                {
+                    if (File.Exists(options.OutputFile))
+                    {
+                        Console.Write($"File '{options.OutputFile}' already exists? Overwrite (y/n)? ");
+                        ConsoleKeyInfo cki = Console.ReadKey();
+                        if (cki.KeyChar != 'y')
+                        {
+                            Console.WriteLine();
+                            return;
+                        }
+                        Console.WriteLine();
+                    }
+
+                    try
+                    {
+                        doc.Save(options.OutputFile);
+                        Console.WriteLine($"'{options.OutputFile}' saved!");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex.Message);
+                    }
+                }
+            }
+            else
+            {
+                if (options.Contents.HasValue)
+                {
+                    var elementsToDisplay = filteredElements.Take(options.Contents.Value);
+
+                    Console.WriteLine();
+                    string msg = $"Displaying contents of {elementsToDisplay.Count()} elements";
+                    Console.WriteLine(msg);
+                    Console.WriteLine(new string('-', msg.Length));
+                    foreach (var element in elementsToDisplay)
+                    {
+                        Console.WriteLine(element.ToString());
+                    }
+                }
+            }
         }
 
         static void Main(string[] args)
         {
-
-            if (args.Length != 4)
-            {
-                Console.WriteLine("Wrong arguments\n");
-
-                PrintUsage();
-                return;
-            }
-
-            string xmlFile = args[0];
-            string outFile = args[1];
-            string baseNode = args[2];
-            string xPathFilter = args[3];
-
-            XDocument doc = null;
-            try
-            {
-                doc = XDocument.Load(xmlFile);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                return;
-            }
-
-            int totalElementCount = 0;
-            XElement[] filteredElements = null;
-            try
-            {
-                totalElementCount = doc.XPathSelectElements(baseNode).Count();
-                filteredElements = doc.XPathSelectElements(baseNode + xPathFilter).ToArray();
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                return;
-            }
-
-            Console.Write($"Filter resulted in {filteredElements.Length} of {totalElementCount} elements. Continue (y/n)? ");
-            ConsoleKeyInfo cki = Console.ReadKey();
-            if (cki.KeyChar != 'y')
-            {
-                Console.WriteLine();
-                return;
-            }
-            Console.WriteLine();
-
-            IEnumerable<XElement> elementsToRemove = null;
-            try
-            {
-                elementsToRemove = doc.XPathSelectElements(baseNode).Except(filteredElements);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                return;
-            }
-
-            Console.WriteLine($"Removing {elementsToRemove.Count()} elements.");
-            elementsToRemove.Remove();
-
-            if (File.Exists(outFile))
-            {
-                Console.Write($"File '{outFile} already exists? Overwrite (y/n)? ");
-                cki = Console.ReadKey();
-                if (cki.KeyChar != 'y')
-                {
-                    Console.WriteLine();
-                    return;
-                }
-                Console.WriteLine();
-            }
-
-            try
-            {
-                doc.Save(outFile);
-                Console.WriteLine($"File '{outFile} saved!");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-            }
+            var result = Parser.Default.ParseArguments<Options>(args)
+                .WithParsed<Options>(o => DoFilter(o));
         }
     }
 }
